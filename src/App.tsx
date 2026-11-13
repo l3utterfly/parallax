@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_SETTINGS, type ViewerSettings } from './parallax/ParallaxViewer';
 import { prepareAssets, type PreparedAssets } from './parallax/prepare';
 import { isModelStored } from './ml/client';
@@ -14,8 +14,6 @@ import { stepIndex, type StepId } from './wizard/steps';
 import { StepImage } from './wizard/StepImage';
 import { StepResult } from './wizard/StepResult';
 import type { Cutout, DepthMap, SourceImage } from './wizard/types';
-
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 function readSize(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -46,8 +44,6 @@ export default function App() {
   const [device, setDevice] = useState<Device>('phone');
   const [assets, setAssets] = useState<PreparedAssets | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** Focus depth picked for the current image; Reset returns here. */
-  const tuned = useRef({ focus: DEFAULT_SETTINGS.focus });
 
   // Are the models already in this browser's storage?
   useEffect(() => {
@@ -132,10 +128,6 @@ export default function App() {
     prepareAssets({ background: source.blob, character: cutout.blob, depth: depth.blob })
       .then((a) => {
         if (cancelled) return a.dispose();
-        const { bgMean, fgMean } = a.stats;
-        // Focus a bit in front of the backdrop; the user's other choices carry over to the new image.
-        tuned.current = { focus: +lerp(bgMean, fgMean, 0.6).toFixed(2) };
-        setSettings((s) => ({ ...s, ...tuned.current }));
         setAssets(a);
       })
       .catch((e) => setError(String(e)));
@@ -218,7 +210,7 @@ export default function App() {
                 depthScale: DEFAULT_SETTINGS.depthScale,
                 motion: DEFAULT_SETTINGS.motion,
                 zoom: DEFAULT_SETTINGS.zoom,
-                focus: tuned.current.focus,
+                focus: DEFAULT_SETTINGS.focus,
               })
             }
             onBack={() => go('depth')}

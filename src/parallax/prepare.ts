@@ -26,6 +26,8 @@ export interface PreparedAssets {
   bgDepthTexture: THREE.DataTexture;
   fgDepthTexture: THREE.DataTexture;
   stats: { bgMean: number; fgMean: number; coverage: number };
+  /** Centroid of the character's solid pixels, 0..1 across the image (t = 0 is the top row). */
+  fgCenter: { u: number; t: number };
   info: { depthWidth: number; depthHeight: number; depthBits: number; warnings: string[] };
   dispose(): void;
 }
@@ -135,6 +137,8 @@ export async function prepareAssets(src: SourceBlobs): Promise<PreparedAssets> {
   let bgN = 0;
   let fgSum = 0;
   let fgN = 0;
+  let fgX = 0;
+  let fgY = 0;
   for (let i = 0; i < d.length; i++) {
     if (bgValid[i]) {
       bgSum += d[i];
@@ -143,10 +147,13 @@ export async function prepareAssets(src: SourceBlobs): Promise<PreparedAssets> {
     if (solid[i]) {
       fgSum += d[i];
       fgN++;
+      fgX += i % workW;
+      fgY += Math.floor(i / workW);
     }
   }
   const bgMean = bgN ? bgSum / bgN : 0.3;
   const fgMean = fgN ? fgSum / fgN : 0.7;
+  const fgCenter = fgN ? { u: (fgX / fgN + 0.5) / workW, t: (fgY / fgN + 0.5) / workH } : { u: 0.5, t: 0.5 };
 
   const bgDepthTexture = depthVisTexture(bgDepth, null, workW, workH);
   const fgDepthTexture = depthVisTexture(fgDepth, alpha, workW, workH);
@@ -164,6 +171,7 @@ export async function prepareAssets(src: SourceBlobs): Promise<PreparedAssets> {
     bgDepthTexture,
     fgDepthTexture,
     stats: { bgMean, fgMean, coverage },
+    fgCenter,
     info: { depthWidth: depth.width, depthHeight: depth.height, depthBits: depth.bitDepth, warnings },
     dispose() {
       for (const t of [bg.tex, fg.tex, bgDepthTexture, fgDepthTexture]) {

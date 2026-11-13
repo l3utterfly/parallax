@@ -17,6 +17,7 @@ export interface Sample {
 export const SAMPLES: Sample[] = [
   { id: 'layla', label: 'Layla', name: 'layla.png', original: `${base}samples/layla/original.png` },
   { id: 'yor', label: 'Yor', name: 'yor.jpg', original: `${base}samples/yor/original.jpg` },
+  { id: 'ironman', label: 'Iron Man', name: 'ironman.jpg', original: `${base}samples/ironman/original.jpg` },
 ];
 
 export interface ModelFileInfo {

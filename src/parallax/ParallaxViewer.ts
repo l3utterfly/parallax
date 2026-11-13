@@ -22,10 +22,10 @@ export interface ViewerSettings {
 }
 
 export const DEFAULT_SETTINGS: ViewerSettings = {
-  depthScale: 0.5,
-  motion: 0.18,
-  focus: 0.6,
-  zoom: 1.12,
+  depthScale: 0.3,
+  motion: 0.05,
+  focus: 0.17,
+  zoom: 1,
   motionSource: 'pointer',
   view: 'composite',
 };
@@ -33,6 +33,11 @@ export const DEFAULT_SETTINGS: ViewerSettings = {
 const FOV = 30;
 /** Grid extends this far past the image (fraction of the image) so edges never show. */
 const MARGIN = 0.15;
+/**
+ * The cutout is drawn this much larger than the backdrop, around its own centroid,
+ * so small camera moves don't reveal the original character baked into the photo.
+ */
+const FG_SCALE = 1.1;
 /** Mesh segments along the image's long side. */
 const SEGMENTS = 320;
 
@@ -186,6 +191,11 @@ export class ParallaxViewer {
     this.bgMesh = new THREE.Mesh(buildLayerGeometry(assets.aspect, assets.bgDepth, assets.workW, assets.workH), this.bgMat);
     this.fgMesh = new THREE.Mesh(buildLayerGeometry(assets.aspect, assets.fgDepth, assets.workW, assets.workH), this.fgMat);
     this.bgMesh.frustumCulled = this.fgMesh.frustumCulled = false;
+    // Scale about the character's centroid so it grows in place instead of drifting off-centre.
+    const cx = (assets.fgCenter.u - 0.5) * assets.aspect;
+    const cy = 0.5 - assets.fgCenter.t;
+    this.fgMesh.scale.set(FG_SCALE, FG_SCALE, 1);
+    this.fgMesh.position.set(cx * (1 - FG_SCALE), cy * (1 - FG_SCALE), 0);
     this.bgScene.add(this.bgMesh);
     this.fgScene.add(this.fgMesh);
   }
