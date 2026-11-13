@@ -1812,3 +1812,13 @@ input:focus-visible {
   padding: 10px 12px;
   font-size: 12.5px;
 }
+
+.note--ok {
+  background: rgb(var(--ok-rgb) / 0.07);
+  border-color: rgb(var(--ok-rgb) / 0.2);
+  color: #b7e6cc;
+}
+
+.note--ok svg {
+  color: var(--ok);
+}

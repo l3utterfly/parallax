@@ -27,10 +27,28 @@ const MOTION_HINT: Record<MotionSource, string> = {
   drift: 'The scene sways slowly on its own.',
 };
 
-const TILT_PROBLEM: Partial<Record<TiltAccess, string>> = {
-  unavailable: 'No motion sensor on this device, so the preview stays still here. On a phone or tablet it follows the tilt.',
-  denied: "Motion access was blocked. Allow it in the browser's site settings to use tilt.",
-};
+const isDesktop = () => matchMedia('(pointer: fine)').matches;
+
+/** What to tell the user after asking for the motion sensor. */
+function tiltStatus(access: TiltAccess | 'checking'): { ok: boolean; text: string } {
+  switch (access) {
+    case 'checking':
+      return { ok: true, text: 'Looking for a motion sensor…' };
+    case 'granted':
+      return { ok: true, text: 'Motion sensor connected. Tilt the device to look around.' };
+    case 'denied':
+      return {
+        ok: false,
+        text: "Motion access was declined. Reload the page and choose Tilt again to get the prompt back, or allow motion sensors in the browser's site settings.",
+      };
+    case 'insecure':
+      return { ok: false, text: 'Tilt only works on a secure page (HTTPS or localhost). Open this page over HTTPS to use the motion sensor.' };
+    case 'unavailable':
+      return isDesktop()
+        ? { ok: false, text: 'No motion sensor on this device, so the preview stays still here. On a phone or tablet it follows the tilt.' }
+        : { ok: false, text: "This device isn't sending motion data, so tilt can't be used here." };
+  }
+}
 
 export function StepConfigure({ assets, settings: s, device, onDevice, onSettings, onReset, onBack, onNext }: Props) {
   const preset = matchPreset(s);
@@ -43,7 +61,7 @@ export function StepConfigure({ assets, settings: s, device, onDevice, onSetting
     setTilt('checking');
     void requestTiltAccess().then(setTilt);
   };
-  const tiltProblem = s.motionSource === 'tilt' && tilt && tilt !== 'checking' ? TILT_PROBLEM[tilt] : undefined;
+  const status = s.motionSource === 'tilt' && tilt ? tiltStatus(tilt) : null;
 
   return (
     <StepLayout
@@ -121,10 +139,10 @@ export function StepConfigure({ assets, settings: s, device, onDevice, onSetting
             ]}
           />
         </Row>
-        {tiltProblem && (
-          <p className="note note--compact">
-            <Icon name="info" size={14} />
-            {tiltProblem}
+        {status && (
+          <p className={`note note--compact${status.ok ? ' note--ok' : ''}`} role="status">
+            <Icon name={status.ok ? 'check' : 'info'} size={14} />
+            {status.text}
           </p>
         )}
         <Slider label="Depth strength" value={s.depthScale} min={0} max={1} onChange={(v) => onSettings({ depthScale: v })} />
