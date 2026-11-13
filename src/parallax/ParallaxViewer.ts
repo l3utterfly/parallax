@@ -17,9 +17,9 @@ export interface ViewerSettings {
   clock: boolean;
   /** Depth value (0..1) of the clock plane. It is always drawn between the layers. */
   clockDepth: number;
-  /** Vertical center of the clock, as a fraction of the image height from the top. */
+  /** Vertical center of the clock, as a fraction of the visible height from the top. */
   clockY: number;
-  /** Clock width as a fraction of the image width. */
+  /** Clock width as a fraction of the visible width. */
   clockSize: number;
   view: ViewMode;
 }
@@ -257,9 +257,13 @@ export class ParallaxViewer {
 
   /** Camera distance at which the focus plane covers the viewport (cover fit + zoom crop). */
   private cameraDistance(): number {
+    return this.coverHeight() / this.settings.zoom / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+  }
+
+  /** Visible image height (image height = 1) when the image covers the viewport at zoom 1. */
+  private coverHeight(): number {
     const imgAspect = this.assets?.aspect ?? 1;
-    const visibleH = Math.max(1, imgAspect / this.camera.aspect) / this.settings.zoom;
-    return visibleH / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+    return Math.min(1, imgAspect / this.camera.aspect);
   }
 
   private frame = (time: number): void => {
@@ -297,9 +301,12 @@ export class ParallaxViewer {
     this.bgMat.uniforms.map.value = depthView ? a.bgDepthTexture : a.bgTexture;
     this.fgMat.uniforms.map.value = depthView ? a.fgDepthTexture : a.fgTexture;
 
-    const clockW = s.clockSize * a.aspect;
+    // Clock size and position are relative to the visible part of the image,
+    // so they hold up when the viewport crops it (for example a phone screen).
+    const visH = this.coverHeight();
+    const clockW = s.clockSize * visH * this.camera.aspect;
     this.clockMesh.scale.set(clockW, clockW, 1);
-    this.clockMesh.position.set(0, 0.5 - s.clockY, 0);
+    this.clockMesh.position.set(0, (0.5 - s.clockY) * visH, 0);
     this.clockMat.uniforms.uBias.value = s.clockDepth;
 
     // Painter's order with a depth clear between layers: the clock is always

@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 interface Props {
   label: string;
   value: number;
@@ -18,6 +20,7 @@ export function Slider({ label, value, min, max, step = 0.01, disabled, format, 
       </span>
       <input
         type="range"
+        style={{ '--p': `${((value - min) / (max - min)) * 100}%` } as CSSProperties}
         min={min}
         max={max}
         step={step}
