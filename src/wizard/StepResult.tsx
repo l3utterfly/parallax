@@ -80,8 +80,8 @@ export function StepResult({ source, assets, settings, device, onDevice, onEdit,
           <Icon name="check" size={20} />
         </span>
         <div>
-          <strong>3 layers built</strong>
-          <span>Backdrop, clock and character, each with its own depth.</span>
+          <strong>2 layers built</strong>
+          <span>Backdrop and character, each with its own depth.</span>
         </div>
       </div>
 
@@ -105,10 +105,6 @@ export function StepResult({ source, assets, settings, device, onDevice, onEdit,
           <dd>
             {preset ? PRESETS[preset].label : 'Custom'} · {MOTION_LABEL[settings.motionSource]}
           </dd>
-        </div>
-        <div>
-          <dt>Clock</dt>
-          <dd>{settings.clock ? `${settings.clockFormat}${settings.showDate ? ' with date' : ''}` : 'Hidden'}</dd>
         </div>
       </dl>
 

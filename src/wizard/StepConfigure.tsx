@@ -3,7 +3,7 @@ import { Slider } from '../components/Slider';
 import { requestTiltAccess, type TiltAccess } from '../parallax/motion';
 import type { MotionSource, ViewMode, ViewerSettings } from '../parallax/ParallaxViewer';
 import type { PreparedAssets } from '../parallax/prepare';
-import { Row, Section, Segmented, Switch } from './Controls';
+import { Row, Section, Segmented } from './Controls';
 import { Icon } from './Icon';
 import { LivePreview } from './LivePreview';
 import type { Device } from './Stage';
@@ -65,7 +65,7 @@ export function StepConfigure({ assets, settings: s, device, onDevice, onSetting
       }
       eyebrow="Step 3 of 3"
       title="Tune the motion"
-      description={`Adjust how the scene moves and where the clock sits. The preview updates live. ${MOTION_HINT[s.motionSource]}`}
+      description={`Adjust how the scene moves. The preview updates live. ${MOTION_HINT[s.motionSource]}`}
       footer={
         <>
           <button type="button" className="btn btn--ghost btn--icon" onClick={onBack} aria-label="Back">
@@ -138,53 +138,6 @@ export function StepConfigure({ assets, settings: s, device, onDevice, onSetting
           format={(v) => `${v.toFixed(2)}×`}
           onChange={(v) => onSettings({ zoom: v })}
         />
-      </Section>
-
-      <Section title="Clock" icon="clock" aside={<Switch label="Show clock" checked={s.clock} onChange={(v) => onSettings({ clock: v })} />}>
-        <div className={`group__fields${s.clock ? '' : ' is-disabled'}`}>
-          <Row label="Format">
-            <Segmented
-              size="sm"
-              label="Clock format"
-              value={s.clockFormat}
-              onChange={(v) => onSettings({ clockFormat: v })}
-              options={[
-                { id: '12h', label: '12h' },
-                { id: '24h', label: '24h' },
-              ]}
-            />
-          </Row>
-          <Row label="Show date">
-            <Switch label="Show date" checked={s.showDate} onChange={(v) => onSettings({ showDate: v })} />
-          </Row>
-          <Slider
-            label="Depth"
-            value={s.clockDepth}
-            min={0}
-            max={1}
-            disabled={!s.clock}
-            format={(v) => (v < 0.34 ? 'Far' : v < 0.67 ? 'Middle' : 'Near') + ` · ${v.toFixed(2)}`}
-            onChange={(v) => onSettings({ clockDepth: v })}
-          />
-          <Slider
-            label="Height"
-            value={s.clockY}
-            min={0}
-            max={1}
-            disabled={!s.clock}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(v) => onSettings({ clockY: v })}
-          />
-          <Slider
-            label="Size"
-            value={s.clockSize}
-            min={0.2}
-            max={1}
-            disabled={!s.clock}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(v) => onSettings({ clockSize: v })}
-          />
-        </div>
       </Section>
 
       <Section title="Inspect" icon="layers">

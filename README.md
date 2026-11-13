@@ -1,6 +1,6 @@
 # Parallax
 
-A 2.5D photo viewer in Vite, React, TypeScript and Three.js, in the style of iOS Spatial Scenes. It uses two layers with depth, plus a clock between them.
+A 2.5D photo viewer in Vite, React, TypeScript and Three.js, in the style of iOS Spatial Scenes. It uses two layers, each with its own depth.
 
 ```bash
 npm install
@@ -21,4 +21,4 @@ npm run dev
   - **Background depth**: the character region (dilated) is removed and filled from the surrounding depth using push-pull, so the inpainted background doesn't bulge forward where the character used to be.
   - **Character depth**: the eroded interior is extended outward past the silhouette, so the edges move as one piece instead of smearing toward the background.
 - `src/parallax/ParallaxViewer.ts` turns each layer into a dense grid mesh. Each vertex is placed along the ray from the centered camera through its pixel, so the view at rest matches the source image exactly. The mouse moves the camera, which looks at the focus depth.
-- The layers are drawn in order (background, clock, character) with a depth clear between them, so the clock is always sandwiched between the two layers.
+- The layers are drawn in order (background, then character) with a depth clear between them, so the character is always drawn over the background.

@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { ClockTexture, type ClockFormat } from './clock';
 import { sampleBilinear } from './fill';
 import { drift, TiltTracker, type MotionSource } from './motion';
 import type { PreparedAssets } from './prepare';
 
-export type { ClockFormat, MotionSource };
+export type { MotionSource };
 
 export type ViewMode = 'composite' | 'background' | 'character' | 'depth';
 
@@ -17,15 +16,6 @@ export interface ViewerSettings {
   focus: number;
   /** Crop factor so the frame edges never come into view. */
   zoom: number;
-  clock: boolean;
-  /** Depth value (0..1) of the clock plane. It is always drawn between the layers. */
-  clockDepth: number;
-  /** Vertical center of the clock, as a fraction of the visible height from the top. */
-  clockY: number;
-  /** Clock width as a fraction of the visible width. */
-  clockSize: number;
-  clockFormat: ClockFormat;
-  showDate: boolean;
   /** What moves the camera: the pointer (or a finger), device tilt, or a slow automatic drift. */
   motionSource: MotionSource;
   view: ViewMode;
@@ -36,12 +26,6 @@ export const DEFAULT_SETTINGS: ViewerSettings = {
   motion: 0.18,
   focus: 0.6,
   zoom: 1.12,
-  clock: true,
-  clockDepth: 0.45,
-  clockY: 0.2,
-  clockSize: 0.62,
-  clockFormat: '12h',
-  showDate: true,
   motionSource: 'pointer',
   view: 'composite',
 };
@@ -60,12 +44,11 @@ attribute float depth;
 uniform float uScale;
 uniform float uFocus;
 uniform float uDist;
-uniform float uBias;
 varying vec2 vUv;
 void main() {
   vUv = uv;
   vec4 wp = modelMatrix * vec4(position.xy, 0.0, 1.0);
-  float z = (depth + uBias - uFocus) * uScale;
+  float z = (depth - uFocus) * uScale;
   wp.xy *= (uDist - z) / uDist;
   wp.z = z;
   gl_Position = projectionMatrix * viewMatrix * wp;
@@ -92,7 +75,6 @@ function makeMaterial(): THREE.ShaderMaterial {
       uScale: { value: 0.5 },
       uFocus: { value: 0.5 },
       uDist: { value: 2 },
-      uBias: { value: 0 },
     },
     transparent: true,
     premultipliedAlpha: true,
@@ -146,23 +128,13 @@ function buildLayerGeometry(aspect: number, depth: Float32Array, dw: number, dh:
   return g;
 }
 
-function buildClockGeometry(): THREE.BufferGeometry {
-  const g = new THREE.PlaneGeometry(1, 0.5);
-  g.setAttribute('depth', new THREE.BufferAttribute(new Float32Array(4), 1));
-  return g;
-}
-
 export class ParallaxViewer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.01, 100);
   private readonly bgScene = new THREE.Scene();
-  private readonly clockScene = new THREE.Scene();
   private readonly fgScene = new THREE.Scene();
   private readonly bgMat = makeMaterial();
   private readonly fgMat = makeMaterial();
-  private readonly clockMat = makeMaterial();
-  private readonly clockTex = new ClockTexture();
-  private readonly clockMesh: THREE.Mesh;
   private bgMesh: THREE.Mesh | null = null;
   private fgMesh: THREE.Mesh | null = null;
   private assets: PreparedAssets | null = null;
@@ -173,7 +145,6 @@ export class ParallaxViewer {
   private readonly resizeObserver: ResizeObserver;
   private raf = 0;
   private lastTime = 0;
-  private lastClockCheck = 0;
 
   private readonly container: HTMLElement;
 
@@ -185,11 +156,6 @@ export class ParallaxViewer {
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.domElement.style.display = 'block';
     container.appendChild(this.renderer.domElement);
-
-    this.clockMat.uniforms.map.value = this.clockTex.texture;
-    this.clockMesh = new THREE.Mesh(buildClockGeometry(), this.clockMat);
-    this.clockMesh.frustumCulled = false;
-    this.clockScene.add(this.clockMesh);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -228,7 +194,6 @@ export class ParallaxViewer {
     this.settings = settings;
     if (settings.motionSource === 'tilt') this.tilt.start();
     else this.tilt.stop();
-    this.clockTex.configure({ format: settings.clockFormat, showDate: settings.showDate });
   }
 
   dispose(): void {
@@ -239,9 +204,7 @@ export class ParallaxViewer {
     window.removeEventListener('blur', this.onPointerLeave);
     this.tilt.stop();
     this.setAssets(null);
-    this.clockMesh.geometry.dispose();
-    this.clockTex.dispose();
-    for (const m of [this.bgMat, this.fgMat, this.clockMat]) m.dispose();
+    for (const m of [this.bgMat, this.fgMat]) m.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
@@ -287,11 +250,6 @@ export class ParallaxViewer {
     const dt = Math.min(0.1, (time - (this.lastTime || time)) / 1000);
     this.lastTime = time;
 
-    if (time - this.lastClockCheck > 1000) {
-      this.lastClockCheck = time;
-      this.clockTex.update();
-    }
-
     const s = this.settings;
     const p = this.pointer;
     const target =
@@ -304,7 +262,7 @@ export class ParallaxViewer {
     this.camera.position.set(p.x * s.motion, p.y * s.motion, dist);
     this.camera.lookAt(0, 0, 0);
 
-    for (const m of [this.bgMat, this.fgMat, this.clockMat]) {
+    for (const m of [this.bgMat, this.fgMat]) {
       m.uniforms.uScale.value = s.depthScale;
       m.uniforms.uFocus.value = s.focus;
       m.uniforms.uDist.value = dist;
@@ -319,21 +277,9 @@ export class ParallaxViewer {
     this.bgMat.uniforms.map.value = depthView ? a.bgDepthTexture : a.bgTexture;
     this.fgMat.uniforms.map.value = depthView ? a.fgDepthTexture : a.fgTexture;
 
-    // Clock size and position are relative to the visible part of the image,
-    // so they hold up when the viewport crops it (for example a phone screen).
-    const visH = this.coverHeight();
-    const clockW = s.clockSize * visH * this.camera.aspect;
-    this.clockMesh.scale.set(clockW, clockW, 1);
-    this.clockMesh.position.set(0, (0.5 - s.clockY) * visH, 0);
-    this.clockMat.uniforms.uBias.value = s.clockDepth;
-
-    // Painter's order with a depth clear between layers: the clock is always
-    // sandwiched between background and character, whatever their depths.
+    // Painter's order with a depth clear in between: the character is always
+    // drawn over the background, whatever their depths.
     if (s.view !== 'character') r.render(this.bgScene, this.camera);
-    if (s.clock && s.view !== 'character') {
-      r.clearDepth();
-      r.render(this.clockScene, this.camera);
-    }
     if (s.view !== 'background') {
       r.clearDepth();
       r.render(this.fgScene, this.camera);

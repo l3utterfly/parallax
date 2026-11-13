@@ -43,8 +43,8 @@ export default function App() {
   const [device, setDevice] = useState<Device>('phone');
   const [assets, setAssets] = useState<PreparedAssets | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** Depths picked for the current image; Reset returns focus here. */
-  const tuned = useRef({ focus: DEFAULT_SETTINGS.focus, clockDepth: DEFAULT_SETTINGS.clockDepth });
+  /** Focus depth picked for the current image; Reset returns here. */
+  const tuned = useRef({ focus: DEFAULT_SETTINGS.focus });
 
   // Are the models already in this browser's storage?
   useEffect(() => {
@@ -120,12 +120,8 @@ export default function App() {
       .then((a) => {
         if (cancelled) return a.dispose();
         const { bgMean, fgMean } = a.stats;
-        // Focus a bit in front of the backdrop and tuck the clock just behind the character.
-        // Everything else the user chose (motion, clock format, ...) carries over to the new image.
-        tuned.current = {
-          focus: +lerp(bgMean, fgMean, 0.6).toFixed(2),
-          clockDepth: +lerp(bgMean, fgMean, 0.3).toFixed(2),
-        };
+        // Focus a bit in front of the backdrop; the user's other choices carry over to the new image.
+        tuned.current = { focus: +lerp(bgMean, fgMean, 0.6).toFixed(2) };
         setSettings((s) => ({ ...s, ...tuned.current }));
         setAssets(a);
       })
