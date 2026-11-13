@@ -1,0 +1,8 @@
+{
+  "title": "Parallax",
+  "tagline": "Turn a photo into a 2.5D scene with depth",
+  "description": "Pick a photo with one clear subject. Parallax cuts the character out, estimates depth, and builds a scene that moves as you tilt your device or move your pointer. Everything runs on your device, and the models are downloaded once. Save the result as its own mini-app.",
+  "iconUri": "icon.jpg",
+  "backgroundImgUri": "thumbnail.jpg",
+  "version": "1.0.0"
+}
