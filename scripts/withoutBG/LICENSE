@@ -1,0 +1,28 @@
+withoutBG Open Weights License
+
+Copyright 2026 withoutBG
+
+The withoutBG Open Weights model in this repository (the ONNX graphs
+withoutbg-open-weights-backbone.onnx, withoutbg-open-weights.onnx and
+birefnet-general.onnx, and the sidecar withoutbg-open-weights.onnx.json) is
+distributed under the withoutBG Open Weights license:
+
+    https://withoutbg.com/open-model/license
+
+The model is built from third-party components that remain under their own
+licenses, and your use must also comply with them:
+
+  - DINOv3 (Meta Platforms, Inc.): DINOv3 License
+    https://ai.meta.com/resources/models-and-libraries/dinov3-license/
+    Built with DINOv3.
+  - Depth Anything V2 (small): Apache License 2.0
+    https://www.apache.org/licenses/LICENSE-2.0
+  - BiRefNet (ZhengPeng7): MIT License
+
+Full notices and license texts are in THIRD_PARTY_NOTICES.md.
+
+THE MODEL IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+Commercial licensing: contact@withoutbg.com
