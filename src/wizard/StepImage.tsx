@@ -1,43 +1,121 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { deleteModel, downloadModel, removeBackground, type Backend, type Phase } from '../ml/withoutbg/client';
 import { Segmented } from './Controls';
-import { BG_MODEL, CUTOUT_PHASES, phaseFor, SAMPLE } from './dummy';
+import { BG_MODEL } from './dummy';
 import { Icon } from './Icon';
 import { FitFrame, Scan } from './Stage';
 import { StepLayout } from './StepLayout';
-import { ModelTask, TaskList, TaskRow } from './Tasks';
-import { formatBytes, type SourceImage } from './types';
-import { useSimulatedTask } from './useSimulatedTask';
+import { ModelTask, TaskList, TaskRow, type RowState } from './Tasks';
+import { formatBytes, type Cutout, type SourceImage } from './types';
 
 type View = 'overlay' | 'cutout' | 'original';
 
+/** Progress-bar span for each phase, and roughly how long it takes (ms) for the creep animation. */
+const PHASES: Record<Phase, { label: string; from: number; to: number; expect: number }> = {
+  decoding: { label: 'Reading the image', from: 0, to: 0.06, expect: 300 },
+  loading: { label: 'Loading the model', from: 0.06, to: 0.28, expect: 2500 },
+  router: { label: 'Finding the subject', from: 0.28, to: 0.45, expect: 900 },
+  matting: { label: 'Building the alpha matte', from: 0.45, to: 0.94, expect: 2500 },
+  compositing: { label: 'Compositing the cutout', from: 0.94, to: 1, expect: 400 },
+};
+
+interface DownloadState {
+  status: RowState;
+  loaded: number;
+  startedAt: number;
+  /** Seconds elapsed at the last progress update. */
+  seconds: number;
+  error?: string;
+}
+
+interface ProcessState {
+  status: 'idle' | 'running' | 'error';
+  phase: Phase;
+  phaseAt: number;
+  backend?: Backend;
+  error?: string;
+}
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 interface Props {
   source: SourceImage | null;
-  cutout: string | null;
-  modelCached: boolean;
+  cutout: Cutout | null;
+  /** null while the stored model files are being checked. */
+  modelStored: boolean | null;
   onChoose: (file: File | 'sample') => void;
-  onCutout: (url: string) => void;
-  onModelCached: () => void;
+  onCutout: (cutout: Cutout) => void;
+  onModelStored: (stored: boolean) => void;
   onBusy: (busy: boolean) => void;
   onNext: () => void;
 }
 
-export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onModelCached, onBusy, onNext }: Props) {
-  const download = useSimulatedTask(3800);
-  const cut = useSimulatedTask(2600);
+export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onModelStored, onBusy, onNext }: Props) {
+  const [dl, setDl] = useState<DownloadState>({ status: 'pending', loaded: 0, startedAt: 0, seconds: 0 });
+  const [proc, setProc] = useState<ProcessState>({ status: 'idle', phase: 'decoding', phaseAt: 0 });
+  const [now, setNow] = useState(0);
   const [view, setView] = useState<View>('overlay');
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
-  const running = download.status === 'running' || cut.status === 'running';
+  const downloading = dl.status === 'running';
+  const processing = proc.status === 'running';
+  const running = downloading || processing;
   useEffect(() => onBusy(running), [running, onBusy]);
 
+  // Tick while processing so the bar creeps forward within each phase.
+  useEffect(() => {
+    if (!processing) return;
+    let raf = 0;
+    const tick = () => {
+      setNow(performance.now());
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [processing]);
+
+  const ph = PHASES[proc.phase];
+  const procProgress = ph.from + (ph.to - ph.from) * (1 - Math.exp(-Math.max(0, now - proc.phaseAt) / ph.expect));
+  const procLabel = ph.label + '…' + (proc.backend === 'wasm' ? ' (on the CPU, WebGPU is unavailable)' : '');
+
   const run = async () => {
-    if (!modelCached) {
-      await download.start();
-      onModelCached();
+    if (!source) return;
+    if (!modelStored) {
+      setDl({ status: 'running', loaded: 0, startedAt: performance.now(), seconds: 0 });
+      try {
+        await downloadModel((loaded) => setDl((d) => ({ ...d, loaded, seconds: (performance.now() - d.startedAt) / 1000 })));
+        setDl((d) => ({ ...d, status: 'done' }));
+        onModelStored(true);
+      } catch (e) {
+        setDl((d) => ({ ...d, status: 'error', error: message(e) }));
+        return;
+      }
     }
-    await cut.start();
-    onCutout(SAMPLE.cutout);
+    const t0 = performance.now();
+    setProc({ status: 'running', phase: 'decoding', phaseAt: t0 });
+    setNow(t0);
+    try {
+      const res = await removeBackground(source.blob, (phase, backend) =>
+        setProc((p) => ({ ...p, phase, phaseAt: performance.now(), backend: backend ?? p.backend })),
+      );
+      onCutout({
+        blob: res.png,
+        url: URL.createObjectURL(res.png),
+        backend: res.backend,
+        seconds: (performance.now() - t0) / 1000,
+      });
+      setProc((p) => ({ ...p, status: 'idle' }));
+      setView('overlay');
+    } catch (e) {
+      setProc((p) => ({ ...p, status: 'error', error: message(e) }));
+    }
+  };
+
+  const removeStoredModel = async () => {
+    await deleteModel();
+    setDl({ status: 'pending', loaded: 0, startedAt: 0, seconds: 0 });
+    onModelStored(false);
   };
 
   const pick = () => input.current?.click();
@@ -48,20 +126,6 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
     const file = e.dataTransfer.files[0];
     if (file?.type.startsWith('image/')) onChoose(file);
   };
-
-  const fileInput = (
-    <input
-      ref={input}
-      type="file"
-      accept="image/png,image/jpeg,image/webp"
-      hidden
-      onChange={(e) => {
-        const f = e.target.files?.[0];
-        if (f) onChoose(f);
-        e.target.value = '';
-      }}
-    />
-  );
 
   // ── Stage ────────────────────────────────────────────────────────────
   let stage;
@@ -104,24 +168,14 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
         )}
         {done && view === 'cutout' && <div className="checker" />}
         {done && view !== 'original' && (
-          <img src={cutout} alt="Character cutout" className={`cutout${view === 'overlay' ? ' cutout--glow' : ''}`} />
+          <img src={cutout.url} alt="Character cutout" className={`cutout${view === 'overlay' ? ' cutout--glow' : ''}`} />
         )}
-        {cut.status === 'running' && (
-          <>
-            <img
-              src={SAMPLE.cutout}
-              alt=""
-              className="cutout cutout--glow"
-              style={{ clipPath: `inset(0 0 ${(1 - cut.progress) * 100}% 0)` }}
-            />
-            <Scan progress={cut.progress} label={phaseFor(CUTOUT_PHASES, cut.progress)} />
-          </>
-        )}
-        {download.status === 'running' && (
+        {processing && <Scan progress={procProgress} label={procLabel} />}
+        {downloading && (
           <div className="stage-veil">
             <div className="stage-pill">
               <Icon name="download" size={15} />
-              Downloading model · {Math.round(download.progress * 100)}%
+              Downloading model · {Math.round((dl.loaded / (BG_MODEL.files.reduce((s, f) => s + f.sizeMB, 0) * 1e6)) * 100)}%
             </div>
           </div>
         )}
@@ -145,7 +199,9 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
     ) : null;
 
   // ── Panel ────────────────────────────────────────────────────────────
-  const cutState = cut.status === 'running' ? 'running' : cutout ? 'done' : 'pending';
+  const modelState: RowState = downloading ? 'running' : dl.status === 'error' ? 'error' : modelStored ? 'done' : 'pending';
+  const cutState: RowState = processing ? 'running' : proc.status === 'error' ? 'error' : cutout ? 'done' : 'pending';
+  const failed = dl.status === 'error' || proc.status === 'error';
 
   return (
     <StepLayout
@@ -160,7 +216,17 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
       }
       footer={
         <>
-          {fileInput}
+          <input
+            ref={input}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onChoose(f);
+              e.target.value = '';
+            }}
+          />
           {!source && (
             <>
               <button type="button" className="btn btn--ghost" onClick={() => onChoose('sample')}>
@@ -177,7 +243,12 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
               {running ? (
                 <>
                   <span className="spinner spinner--sm spinner--dark" />
-                  {download.status === 'running' ? 'Downloading model…' : 'Cutting out…'}
+                  {downloading ? 'Downloading model…' : 'Cutting out…'}
+                </>
+              ) : failed ? (
+                <>
+                  <Icon name="refresh" />
+                  Try again
                 </>
               ) : (
                 <>
@@ -188,7 +259,7 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
             </button>
           )}
           {source && cutout && (
-            <button type="button" className="btn btn--primary btn--wide" onClick={onNext}>
+            <button type="button" className="btn btn--primary btn--wide" onClick={onNext} disabled={running}>
               Continue to depth
               <Icon name="arrowRight" />
             </button>
@@ -238,15 +309,31 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
           </div>
 
           <TaskList>
-            <ModelTask model={BG_MODEL} task={download} cached={modelCached} />
+            <ModelTask
+              model={BG_MODEL}
+              state={modelState}
+              loaded={dl.loaded}
+              seconds={dl.seconds}
+              doneText={dl.status === 'done' ? 'Downloaded' : 'Saved'}
+              error={dl.error}
+              aside={
+                modelState === 'done' &&
+                !running && (
+                  <button type="button" className="text-btn task__action" onClick={removeStoredModel}>
+                    Delete
+                  </button>
+                )
+              }
+            />
             <TaskRow
               icon="wand"
               title="Remove background"
               subtitle="Separate the character from the scene"
               state={cutState}
-              progress={cut.progress}
-              detail={phaseFor(CUTOUT_PHASES, cut.progress)}
-              doneText={cut.elapsed ? `${cut.elapsed.toFixed(1)} s` : 'Done'}
+              progress={procProgress}
+              detail={procLabel}
+              doneText={cutout ? `${cutout.seconds.toFixed(1)} s · ${cutout.backend === 'webgpu' ? 'GPU' : 'CPU'}` : 'Done'}
+              error={proc.error}
             />
           </TaskList>
 
@@ -256,7 +343,7 @@ export function StepImage({ source, cutout, modelCached, onChoose, onCutout, onM
               <div className="outputs__grid">
                 <figure className="output">
                   <div className="output__thumb checker">
-                    <img src={cutout} alt="" />
+                    <img src={cutout.url} alt="" />
                   </div>
                   <figcaption>
                     <strong>Character cutout</strong>

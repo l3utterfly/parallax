@@ -1,5 +1,8 @@
-// Placeholder data for the import UI. Nothing here runs a model yet: the
-// "processing" steps are timed simulations that hand back the sample files.
+// Sample files and model metadata for the import UI. Step 1 (background
+// removal) is real; step 2 (depth) is still a timed simulation that hands back
+// the sample depth map.
+
+import { WITHOUTBG, WITHOUTBG_FILES } from '../ml/withoutbg/config';
 
 const base = import.meta.env.BASE_URL;
 
@@ -24,13 +27,11 @@ export interface ModelInfo {
   files: ModelFile[];
 }
 
+/** Real: the withoutBG files step 1 downloads. */
 export const BG_MODEL: ModelInfo = {
   name: 'withoutBG open weights',
-  source: 'Hugging Face · v10.12.4',
-  files: [
-    { name: 'withoutbg-open-weights-backbone.onnx', sizeMB: 350 },
-    { name: 'withoutbg-open-weights.onnx', sizeMB: 104 },
-  ],
+  source: `Hugging Face · v${WITHOUTBG.version}`,
+  files: WITHOUTBG_FILES.map((f) => ({ name: f.name, sizeMB: Math.round(f.bytes / 1e6) })),
 };
 
 export const DEPTH_MODEL: ModelInfo = {
@@ -42,7 +43,6 @@ export const DEPTH_MODEL: ModelInfo = {
 export const totalMB = (m: ModelInfo) => m.files.reduce((s, f) => s + f.sizeMB, 0);
 
 /** Status lines shown while a simulated job runs, picked by progress. */
-export const CUTOUT_PHASES = ['Finding the subject', 'Refining hair and edges', 'Building the alpha matte'];
 export const DEPTH_PHASES = ['Running at 518 px', 'Upsampling to full size', 'Encoding 16-bit depth'];
 
 /** Dummy depth statistics for the sample (0 = far, 1 = near). */

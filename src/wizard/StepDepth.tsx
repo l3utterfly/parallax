@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Segmented } from './Controls';
-import { DEPTH_MODEL, DEPTH_PHASES, DEPTH_STATS, phaseFor, SAMPLE } from './dummy';
+import { DEPTH_MODEL, DEPTH_PHASES, DEPTH_STATS, phaseFor, SAMPLE, totalMB } from './dummy';
 import { Icon } from './Icon';
 import { Compare, FitFrame, Scan } from './Stage';
 import { StepLayout } from './StepLayout';
@@ -128,7 +128,13 @@ export function StepDepth({ source, depth, modelCached, onDepth, onModelCached, 
       }
     >
       <TaskList>
-        <ModelTask model={DEPTH_MODEL} task={download} cached={modelCached} />
+        <ModelTask
+          model={DEPTH_MODEL}
+          state={download.status === 'running' ? 'running' : modelCached ? 'done' : 'pending'}
+          loaded={download.progress * totalMB(DEPTH_MODEL) * 1e6}
+          seconds={download.runningFor}
+          doneText={download.status === 'done' ? 'Downloaded' : 'Cached'}
+        />
         <TaskRow
           icon="mountain"
           title="Estimate depth"

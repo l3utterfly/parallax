@@ -1,4 +1,7 @@
+import type { Backend } from '../ml/withoutbg/client';
+
 export interface SourceImage {
+  blob: Blob;
   url: string;
   name: string;
   width: number;
@@ -6,6 +9,15 @@ export interface SourceImage {
   bytes: number;
   /** True for the bundled sample, whose URL must not be revoked. */
   sample: boolean;
+}
+
+/** Output of step 1: the original image with the matte as alpha. */
+export interface Cutout {
+  blob: Blob;
+  url: string;
+  backend: Backend;
+  /** Wall time of the whole background-removal run. */
+  seconds: number;
 }
 
 export type MotionSource = 'pointer' | 'tilt' | 'drift';
