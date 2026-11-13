@@ -13,7 +13,7 @@
 // Reading works on any thread; saving and deleting need the page (the SDK posts
 // through window.ReactNativeWebView).
 
-import type LaylaSDK from '@layla-network/sdk';
+import { layla, toBase64 } from '../layla';
 import type { ModelFile } from './modelStore';
 import type { ModelSpec } from './models';
 
@@ -43,24 +43,7 @@ const expectedManifest = (file: ModelFile): FileManifest => ({
   parts: partCount(file),
 });
 
-// Loaded on first save/delete, so the worker (which only reads) doesn't bundle the SDK.
-let sdk: Promise<LaylaSDK> | null = null;
-const layla = () => (sdk ??= import('@layla-network/sdk').then((m) => new m.default()));
-
 const toHex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
-
-/** Base64 without the data URI prefix; FileReader does the encoding natively. */
-function toBase64(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = reader.result as string;
-      resolve(url.slice(url.indexOf(',') + 1));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(new Blob([bytes]));
-  });
-}
 
 async function save(path: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
   const result = await (await layla()).utils.saveFile(path, await toBase64(bytes), false);

@@ -7,10 +7,12 @@ import { LivePreview } from './LivePreview';
 import type { Device } from './Stage';
 import { StepLayout } from './StepLayout';
 import { matchPreset, PRESETS } from './presets';
-import type { SourceImage } from './types';
+import type { Cutout, DepthMap, SourceImage } from './types';
 
 interface Props {
   source: SourceImage;
+  cutout: Cutout;
+  depth: DepthMap;
   assets: PreparedAssets | null;
   settings: ViewerSettings;
   device: Device;
@@ -21,13 +23,48 @@ interface Props {
 
 const MOTION_LABEL = { pointer: 'Pointer', tilt: 'Device tilt', drift: 'Auto drift' } as const;
 
-export function StepResult({ source, assets, settings, device, onDevice, onEdit, onRestart }: Props) {
+/** "anime_long_hair.jpg" -> "Anime long hair" */
+function defaultTitle(fileName: string): string {
+  const words = fileName.replace(/\.[^.]+$/, '').replace(/[_\-.]+/g, ' ').trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : 'Parallax scene';
+}
+
+export function StepResult({ source, cutout, depth, assets, settings, device, onDevice, onEdit, onRestart }: Props) {
   const [toast, setToast] = useState<string | null>(null);
+  const [title, setTitle] = useState(() => defaultTitle(source.name));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2400);
+    const t = setTimeout(() => setToast(null), 3200);
     return () => clearTimeout(t);
   }, [toast]);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      // Loaded on demand: the exporter carries the whole standalone player.
+      const [{ exportScene }, { saveExport }] = await Promise.all([
+        import('../export/sceneExport'),
+        import('../export/saveExport'),
+      ]);
+      const { blob, filename } = await exportScene({
+        title,
+        original: source.blob,
+        originalName: source.name,
+        cutout: cutout.blob,
+        depth: depth.blob,
+        settings,
+      });
+      const how = await saveExport(blob, filename);
+      setToast(how === 'shared' ? `Saved ${filename}` : `Downloaded ${filename}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const preset = matchPreset(settings);
   // The result shows the composite scene regardless of what was being inspected.
@@ -61,18 +98,21 @@ export function StepResult({ source, assets, settings, device, onDevice, onEdit,
       }
       eyebrow="Done"
       title="Your scene is ready"
-      description="Move your pointer or drag on the preview to look around. Save it to your library, or go back and fine-tune."
+      description="Move your pointer or drag on the preview to look around. Save it as a Layla mini-app, or go back and fine-tune."
       footer={
-        <>
-          <button type="button" className="btn btn--ghost" onClick={() => setToast('Layers exported (demo)')}>
-            <Icon name="share" />
-            Export
-          </button>
-          <button type="button" className="btn btn--primary btn--wide" onClick={() => setToast('Saved to your library (demo)')}>
-            <Icon name="save" />
-            Save scene
-          </button>
-        </>
+        <button type="button" className="btn btn--primary btn--wide" onClick={save} disabled={saving}>
+          {saving ? (
+            <>
+              <span className="spinner spinner--sm spinner--dark" />
+              Packaging…
+            </>
+          ) : (
+            <>
+              <Icon name="save" />
+              Save scene
+            </>
+          )}
+        </button>
       }
     >
       <div className="success">
@@ -84,6 +124,25 @@ export function StepResult({ source, assets, settings, device, onDevice, onEdit,
           <span>Backdrop and character, each with its own depth.</span>
         </div>
       </div>
+
+      <label className="field">
+        <span className="field__label">Scene name</span>
+        <input
+          className="field__input"
+          value={title}
+          maxLength={60}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Parallax scene"
+        />
+        <span className="field__hint">Saved as a Layla mini-app (.zip) with the photo, cutout and depth map.</span>
+      </label>
+
+      {error && (
+        <p className="note note--error" role="alert">
+          <Icon name="info" size={15} />
+          {error}
+        </p>
+      )}
 
       <dl className="summary">
         <div>

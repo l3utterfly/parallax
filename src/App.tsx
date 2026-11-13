@@ -210,9 +210,11 @@ export default function App() {
             onNext={() => go('result')}
           />
         )}
-        {step === 'result' && source && (
+        {step === 'result' && source && cutout && depth && (
           <StepResult
             source={source}
+            cutout={cutout}
+            depth={depth}
             assets={assets}
             settings={settings}
             device={device}
