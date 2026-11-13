@@ -5,6 +5,7 @@ import { estimateDepth } from './depth/pipeline';
 import { download } from './modelStore';
 import { MODELS } from './models';
 import type { Request, Response } from './protocol';
+import { setStorage } from './runtime';
 import { removeBackground } from './withoutbg/pipeline';
 
 const post = (msg: Response) => self.postMessage(msg);
@@ -30,9 +31,11 @@ self.onmessage = async (e: MessageEvent<Request>) => {
         break;
       }
       case 'removeBackground':
+        setStorage(msg.storage);
         post({ id, type: 'done', result: await removeBackground(msg.image, phase) });
         break;
       case 'estimateDepth':
+        setStorage(msg.storage);
         post({ id, type: 'done', result: await estimateDepth(msg.image, msg.cutout, phase) });
         break;
     }

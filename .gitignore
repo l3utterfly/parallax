@@ -35,3 +35,6 @@ __pycache__/
 *.onnx
 *.safetensors
 scripts/withoutBG/.cache/
+
+# Dev stand-in for the Layla mini-app folder (?layla-mock)
+.layla-dev/

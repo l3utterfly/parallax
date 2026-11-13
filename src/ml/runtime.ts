@@ -2,9 +2,11 @@
 
 import * as ort from 'onnxruntime-web/webgpu';
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
+import { readFromAppFolder } from './appFolderStore';
 import { readFile } from './modelStore';
 import { MODELS, type ModelId } from './models';
 import type { Backend } from './protocol';
+import type { StorageLocation } from './storage';
 
 ort.env.wasm.wasmPaths = { wasm: wasmUrl };
 ort.env.logLevel = 'error';
@@ -12,6 +14,12 @@ ort.env.logLevel = 'error';
 export { ort };
 
 let backend: Promise<Backend> | null = null;
+let storage: StorageLocation = { kind: 'opfs' };
+
+/** Where model files are read from; the page sends this with each run request. */
+export function setStorage(location: StorageLocation): void {
+  storage = location;
+}
 
 /** WebGPU when the browser has a GPU adapter, otherwise the WASM (CPU) backend. */
 export function pickBackend(): Promise<Backend> {
@@ -34,7 +42,9 @@ export async function createSession(
 ): Promise<ort.InferenceSession> {
   const spec = MODELS[model];
   const file = spec.files.find((f) => f.name === fileName)!;
-  const bytes = new Uint8Array(await readFile(spec.dir, file));
+  const buffer =
+    storage.kind === 'app-folder' ? await readFromAppFolder(storage.baseUrl, spec, file) : await readFile(spec.dir, file);
+  const bytes = new Uint8Array(buffer);
   return ort.InferenceSession.create(bytes, {
     executionProviders: [await pickBackend()],
     graphOptimizationLevel: 'all',

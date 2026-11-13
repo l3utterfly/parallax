@@ -1,6 +1,7 @@
-/** Messages between the main thread and the ML worker. */
+/** Messages between the main thread and the ML worker. Downloads into the Layla app folder run on the page instead. */
 
 import type { ModelId } from './models';
+import type { StorageLocation } from './storage';
 
 export type Backend = 'webgpu' | 'wasm';
 
@@ -30,8 +31,8 @@ export interface DepthResult {
 
 export type Request =
   | { id: number; type: 'download'; model: ModelId }
-  | { id: number; type: 'removeBackground'; image: Blob }
-  | { id: number; type: 'estimateDepth'; image: Blob; cutout: Blob | null };
+  | { id: number; type: 'removeBackground'; image: Blob; storage: StorageLocation }
+  | { id: number; type: 'estimateDepth'; image: Blob; cutout: Blob | null; storage: StorageLocation };
 
 export type Response =
   | { id: number; type: 'progress'; loaded: number; total: number }

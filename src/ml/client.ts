@@ -1,7 +1,9 @@
 // Main-thread API for the ML worker. All heavy work happens in the worker.
 
+import { deleteFromAppFolder, downloadToAppFolder, isStoredInAppFolder } from './appFolderStore';
 import { deleteStored, isStored } from './modelStore';
 import { MODELS, type ModelId } from './models';
+import { storageLocation } from './storage';
 import type { Backend, CutoutPhase, CutoutResult, DepthPhase, DepthResult, Request, Response } from './protocol';
 
 export type { Backend, CutoutPhase, CutoutResult, DepthPhase, DepthResult, ModelId };
@@ -50,15 +52,21 @@ function call<T>(req: Without<Request, 'id'>, onEvent: Listener = () => {}): Pro
 
 /** True when every file of the model is downloaded and verified. */
 export function isModelStored(model: ModelId): Promise<boolean> {
-  return isStored(MODELS[model].dir, MODELS[model].files);
+  const where = storageLocation();
+  const spec = MODELS[model];
+  return where.kind === 'app-folder' ? isStoredInAppFolder(where.baseUrl, spec) : isStored(spec.dir, spec.files);
 }
 
 export function deleteModel(model: ModelId): Promise<void> {
-  return deleteStored(MODELS[model].dir);
+  const where = storageLocation();
+  return where.kind === 'app-folder' ? deleteFromAppFolder(MODELS[model]) : deleteStored(MODELS[model].dir);
 }
 
-/** Downloads the model's files into OPFS, skipping any already stored. */
+/** Downloads the model's files (Layla app folder or OPFS), skipping any already stored. */
 export async function downloadModel(model: ModelId, onProgress: (loaded: number, total: number) => void): Promise<void> {
+  const where = storageLocation();
+  // Saving into the Layla app folder goes through the SDK, which only exists on the page.
+  if (where.kind === 'app-folder') return downloadToAppFolder(where.baseUrl, MODELS[model], onProgress);
   // Ask the browser not to evict the files under storage pressure. It may say no; that's fine.
   await navigator.storage.persist?.().catch(() => false);
   await call<void>({ type: 'download', model }, (m) => m.type === 'progress' && onProgress(m.loaded, m.total));
@@ -66,7 +74,7 @@ export async function downloadModel(model: ModelId, onProgress: (loaded: number,
 
 /** Cuts the subject out of `image` (withoutBG). The model must be downloaded first. */
 export function removeBackground(image: Blob, onPhase: (phase: CutoutPhase, backend?: Backend) => void): Promise<CutoutResult> {
-  return call<CutoutResult>({ type: 'removeBackground', image }, (m) => m.type === 'phase' && onPhase(m.phase as CutoutPhase, m.backend));
+  return call<CutoutResult>({ type: 'removeBackground', image, storage: storageLocation() }, (m) => m.type === 'phase' && onPhase(m.phase as CutoutPhase, m.backend));
 }
 
 /** Estimates depth for `image` (Depth Anything V2). The model must be downloaded first. */
@@ -75,5 +83,5 @@ export function estimateDepth(
   cutout: Blob | null,
   onPhase: (phase: DepthPhase, backend?: Backend) => void,
 ): Promise<DepthResult> {
-  return call<DepthResult>({ type: 'estimateDepth', image, cutout }, (m) => m.type === 'phase' && onPhase(m.phase as DepthPhase, m.backend));
+  return call<DepthResult>({ type: 'estimateDepth', image, cutout, storage: storageLocation() }, (m) => m.type === 'phase' && onPhase(m.phase as DepthPhase, m.backend));
 }
