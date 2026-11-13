@@ -1,29 +1,49 @@
+import { useState } from 'react';
 import { Slider } from '../components/Slider';
-import type { ViewMode, ViewerSettings } from '../parallax/ParallaxViewer';
+import { requestTiltAccess, type TiltAccess } from '../parallax/motion';
+import type { MotionSource, ViewMode, ViewerSettings } from '../parallax/ParallaxViewer';
 import type { PreparedAssets } from '../parallax/prepare';
 import { Row, Section, Segmented, Switch } from './Controls';
 import { Icon } from './Icon';
 import { LivePreview } from './LivePreview';
 import type { Device } from './Stage';
 import { StepLayout } from './StepLayout';
-import type { ExtraSettings } from './types';
 import { matchPreset, PRESETS, type PresetId } from './presets';
 
 interface Props {
   assets: PreparedAssets | null;
   settings: ViewerSettings;
-  extras: ExtraSettings;
   device: Device;
   onDevice: (d: Device) => void;
   onSettings: (patch: Partial<ViewerSettings>) => void;
-  onExtras: (patch: Partial<ExtraSettings>) => void;
   onReset: () => void;
   onBack: () => void;
   onNext: () => void;
 }
 
-export function StepConfigure({ assets, settings: s, extras: x, device, onDevice, onSettings, onExtras, onReset, onBack, onNext }: Props) {
+const MOTION_HINT: Record<MotionSource, string> = {
+  pointer: 'Move your pointer, or drag on the preview, to look around.',
+  tilt: 'Tilt your phone or tablet to look around.',
+  drift: 'The scene sways slowly on its own.',
+};
+
+const TILT_PROBLEM: Partial<Record<TiltAccess, string>> = {
+  unavailable: 'No motion sensor on this device, so the preview stays still here. On a phone or tablet it follows the tilt.',
+  denied: "Motion access was blocked. Allow it in the browser's site settings to use tilt.",
+};
+
+export function StepConfigure({ assets, settings: s, device, onDevice, onSettings, onReset, onBack, onNext }: Props) {
   const preset = matchPreset(s);
+  const [tilt, setTilt] = useState<TiltAccess | 'checking' | null>(null);
+
+  const setMotionSource = (motionSource: MotionSource) => {
+    onSettings({ motionSource });
+    if (motionSource !== 'tilt') return;
+    // iOS only shows its permission prompt from a tap, so ask right here.
+    setTilt('checking');
+    void requestTiltAccess().then(setTilt);
+  };
+  const tiltProblem = s.motionSource === 'tilt' && tilt && tilt !== 'checking' ? TILT_PROBLEM[tilt] : undefined;
 
   return (
     <StepLayout
@@ -45,7 +65,7 @@ export function StepConfigure({ assets, settings: s, extras: x, device, onDevice
       }
       eyebrow="Step 3 of 3"
       title="Tune the motion"
-      description="Adjust how the scene moves and where the clock sits. The preview updates live: move your pointer or drag on it to look around."
+      description={`Adjust how the scene moves and where the clock sits. The preview updates live. ${MOTION_HINT[s.motionSource]}`}
       footer={
         <>
           <button type="button" className="btn btn--ghost btn--icon" onClick={onBack} aria-label="Back">
@@ -92,8 +112,8 @@ export function StepConfigure({ assets, settings: s, extras: x, device, onDevice
           <Segmented
             size="sm"
             label="Motion source"
-            value={x.motionSource}
-            onChange={(v) => onExtras({ motionSource: v })}
+            value={s.motionSource}
+            onChange={setMotionSource}
             options={[
               { id: 'pointer', label: 'Pointer' },
               { id: 'tilt', label: 'Tilt' },
@@ -101,6 +121,12 @@ export function StepConfigure({ assets, settings: s, extras: x, device, onDevice
             ]}
           />
         </Row>
+        {tiltProblem && (
+          <p className="note note--compact">
+            <Icon name="info" size={14} />
+            {tiltProblem}
+          </p>
+        )}
         <Slider label="Depth strength" value={s.depthScale} min={0} max={1} onChange={(v) => onSettings({ depthScale: v })} />
         <Slider label="Camera travel" value={s.motion} min={0} max={0.5} onChange={(v) => onSettings({ motion: v })} />
         <Slider label="Focus depth" value={s.focus} min={0} max={1} onChange={(v) => onSettings({ focus: v })} />
@@ -120,8 +146,8 @@ export function StepConfigure({ assets, settings: s, extras: x, device, onDevice
             <Segmented
               size="sm"
               label="Clock format"
-              value={x.clockFormat}
-              onChange={(v) => onExtras({ clockFormat: v })}
+              value={s.clockFormat}
+              onChange={(v) => onSettings({ clockFormat: v })}
               options={[
                 { id: '12h', label: '12h' },
                 { id: '24h', label: '24h' },
@@ -129,7 +155,7 @@ export function StepConfigure({ assets, settings: s, extras: x, device, onDevice
             />
           </Row>
           <Row label="Show date">
-            <Switch label="Show date" checked={x.showDate} onChange={(v) => onExtras({ showDate: v })} />
+            <Switch label="Show date" checked={s.showDate} onChange={(v) => onSettings({ showDate: v })} />
           </Row>
           <Slider
             label="Depth"

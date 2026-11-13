@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { ClockTexture } from './clock';
+import { ClockTexture, type ClockFormat } from './clock';
 import { sampleBilinear } from './fill';
+import { drift, TiltTracker, type MotionSource } from './motion';
 import type { PreparedAssets } from './prepare';
+
+export type { ClockFormat, MotionSource };
 
 export type ViewMode = 'composite' | 'background' | 'character' | 'depth';
 
@@ -21,6 +24,10 @@ export interface ViewerSettings {
   clockY: number;
   /** Clock width as a fraction of the visible width. */
   clockSize: number;
+  clockFormat: ClockFormat;
+  showDate: boolean;
+  /** What moves the camera: the pointer (or a finger), device tilt, or a slow automatic drift. */
+  motionSource: MotionSource;
   view: ViewMode;
 }
 
@@ -33,6 +40,9 @@ export const DEFAULT_SETTINGS: ViewerSettings = {
   clockDepth: 0.45,
   clockY: 0.2,
   clockSize: 0.62,
+  clockFormat: '12h',
+  showDate: true,
+  motionSource: 'pointer',
   view: 'composite',
 };
 
@@ -157,7 +167,9 @@ export class ParallaxViewer {
   private fgMesh: THREE.Mesh | null = null;
   private assets: PreparedAssets | null = null;
   private settings: ViewerSettings = DEFAULT_SETTINGS;
+  /** Pointer target (tx, ty) and the eased camera offset (x, y), both -1..1. */
   private readonly pointer = { tx: 0, ty: 0, x: 0, y: 0 };
+  private readonly tilt = new TiltTracker();
   private readonly resizeObserver: ResizeObserver;
   private raf = 0;
   private lastTime = 0;
@@ -214,6 +226,9 @@ export class ParallaxViewer {
 
   setSettings(settings: ViewerSettings): void {
     this.settings = settings;
+    if (settings.motionSource === 'tilt') this.tilt.start();
+    else this.tilt.stop();
+    this.clockTex.configure({ format: settings.clockFormat, showDate: settings.showDate });
   }
 
   dispose(): void {
@@ -222,6 +237,7 @@ export class ParallaxViewer {
     window.removeEventListener('pointermove', this.onPointerMove);
     document.documentElement.removeEventListener('pointerleave', this.onPointerLeave);
     window.removeEventListener('blur', this.onPointerLeave);
+    this.tilt.stop();
     this.setAssets(null);
     this.clockMesh.geometry.dispose();
     this.clockTex.dispose();
@@ -278,9 +294,11 @@ export class ParallaxViewer {
 
     const s = this.settings;
     const p = this.pointer;
+    const target =
+      s.motionSource === 'tilt' ? this.tilt : s.motionSource === 'drift' ? drift(time / 1000) : { x: p.tx, y: p.ty };
     const k = 1 - Math.exp(-dt * 5);
-    p.x += (p.tx - p.x) * k;
-    p.y += (p.ty - p.y) * k;
+    p.x += (target.x - p.x) * k;
+    p.y += (target.y - p.y) * k;
 
     const dist = this.cameraDistance();
     this.camera.position.set(p.x * s.motion, p.y * s.motion, dist);

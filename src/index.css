@@ -1806,3 +1806,9 @@ input:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+.note--compact {
+  margin-top: -6px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}

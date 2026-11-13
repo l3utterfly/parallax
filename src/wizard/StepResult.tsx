@@ -7,13 +7,12 @@ import { LivePreview } from './LivePreview';
 import type { Device } from './Stage';
 import { StepLayout } from './StepLayout';
 import { matchPreset, PRESETS } from './presets';
-import type { ExtraSettings, SourceImage } from './types';
+import type { SourceImage } from './types';
 
 interface Props {
   source: SourceImage;
   assets: PreparedAssets | null;
   settings: ViewerSettings;
-  extras: ExtraSettings;
   device: Device;
   onDevice: (d: Device) => void;
   onEdit: () => void;
@@ -22,7 +21,7 @@ interface Props {
 
 const MOTION_LABEL = { pointer: 'Pointer', tilt: 'Device tilt', drift: 'Auto drift' } as const;
 
-export function StepResult({ source, assets, settings, extras, device, onDevice, onEdit, onRestart }: Props) {
+export function StepResult({ source, assets, settings, device, onDevice, onEdit, onRestart }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (!toast) return;
@@ -104,12 +103,12 @@ export function StepResult({ source, assets, settings, extras, device, onDevice,
         <div>
           <dt>Motion</dt>
           <dd>
-            {preset ? PRESETS[preset].label : 'Custom'} · {MOTION_LABEL[extras.motionSource]}
+            {preset ? PRESETS[preset].label : 'Custom'} · {MOTION_LABEL[settings.motionSource]}
           </dd>
         </div>
         <div>
           <dt>Clock</dt>
-          <dd>{settings.clock ? `${extras.clockFormat}${extras.showDate ? ' with date' : ''}` : 'Hidden'}</dd>
+          <dd>{settings.clock ? `${settings.clockFormat}${settings.showDate ? ' with date' : ''}` : 'Hidden'}</dd>
         </div>
       </dl>
 

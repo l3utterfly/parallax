@@ -10,7 +10,7 @@ import { Stepper } from './wizard/Stepper';
 import { stepIndex, type StepId } from './wizard/steps';
 import { StepImage } from './wizard/StepImage';
 import { StepResult } from './wizard/StepResult';
-import { DEFAULT_EXTRAS, type Cutout, type DepthMap, type ExtraSettings, type SourceImage } from './wizard/types';
+import type { Cutout, DepthMap, SourceImage } from './wizard/types';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -40,11 +40,11 @@ export default function App() {
   const [bgStored, setBgStored] = useState<boolean | null>(null);
   const [depthStored, setDepthStored] = useState<boolean | null>(null);
   const [settings, setSettings] = useState<ViewerSettings>(DEFAULT_SETTINGS);
-  const [extras, setExtras] = useState<ExtraSettings>(DEFAULT_EXTRAS);
   const [device, setDevice] = useState<Device>('phone');
   const [assets, setAssets] = useState<PreparedAssets | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const tuned = useRef<ViewerSettings>(DEFAULT_SETTINGS);
+  /** Depths picked for the current image; Reset returns focus here. */
+  const tuned = useRef({ focus: DEFAULT_SETTINGS.focus, clockDepth: DEFAULT_SETTINGS.clockDepth });
 
   // Are the models already in this browser's storage?
   useEffect(() => {
@@ -120,13 +120,13 @@ export default function App() {
       .then((a) => {
         if (cancelled) return a.dispose();
         const { bgMean, fgMean } = a.stats;
-        const tunedSettings = {
-          ...DEFAULT_SETTINGS,
+        // Focus a bit in front of the backdrop and tuck the clock just behind the character.
+        // Everything else the user chose (motion, clock format, ...) carries over to the new image.
+        tuned.current = {
           focus: +lerp(bgMean, fgMean, 0.6).toFixed(2),
           clockDepth: +lerp(bgMean, fgMean, 0.3).toFixed(2),
         };
-        tuned.current = tunedSettings;
-        setSettings(tunedSettings);
+        setSettings((s) => ({ ...s, ...tuned.current }));
         setAssets(a);
       })
       .catch((e) => setError(String(e)));
@@ -138,7 +138,6 @@ export default function App() {
   useEffect(() => () => assets?.dispose(), [assets]);
 
   const patchSettings = useCallback((p: Partial<ViewerSettings>) => setSettings((s) => ({ ...s, ...p })), []);
-  const patchExtras = useCallback((p: Partial<ExtraSettings>) => setExtras((s) => ({ ...s, ...p })), []);
 
   return (
     <div className="shell">
@@ -200,12 +199,17 @@ export default function App() {
           <StepConfigure
             assets={assets}
             settings={settings}
-            extras={extras}
             device={device}
             onDevice={setDevice}
             onSettings={patchSettings}
-            onExtras={patchExtras}
-            onReset={() => setSettings(tuned.current)}
+            onReset={() =>
+              patchSettings({
+                depthScale: DEFAULT_SETTINGS.depthScale,
+                motion: DEFAULT_SETTINGS.motion,
+                zoom: DEFAULT_SETTINGS.zoom,
+                focus: tuned.current.focus,
+              })
+            }
             onBack={() => go('depth')}
             onNext={() => go('result')}
           />
@@ -215,7 +219,6 @@ export default function App() {
             source={source}
             assets={assets}
             settings={settings}
-            extras={extras}
             device={device}
             onDevice={setDevice}
             onEdit={() => go('configure')}
