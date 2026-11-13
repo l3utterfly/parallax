@@ -5,7 +5,7 @@ import { isModelStored } from './ml/client';
 import { canReachDownloadHosts } from './ml/hostCheck';
 import { inLayla } from './ml/storage';
 import { PermissionsDialog } from './wizard/PermissionsDialog';
-import { SAMPLE } from './wizard/catalog';
+import type { Sample } from './wizard/catalog';
 import type { Device } from './wizard/Stage';
 import { StepConfigure } from './wizard/StepConfigure';
 import { StepDepth } from './wizard/StepDepth';
@@ -89,17 +89,18 @@ export default function App() {
   }, []);
 
   const choose = useCallback(
-    async (file: File | 'sample') => {
+    async (file: File | Sample) => {
       setError(null);
       try {
-        const blob = file === 'sample' ? await fetchBlob(SAMPLE.original) : file;
-        const url = file === 'sample' ? SAMPLE.original : URL.createObjectURL(file);
+        const isFile = file instanceof File;
+        const blob = isFile ? file : await fetchBlob(file.original);
+        const url = isFile ? URL.createObjectURL(file) : file.original;
         const { width, height } = await readSize(url);
         setSource((old) => {
           if (old && !old.sample) URL.revokeObjectURL(old.url);
-          return file === 'sample'
-            ? { blob, url, name: SAMPLE.name, width, height, bytes: blob.size, sample: true }
-            : { blob, url, name: file.name, width, height, bytes: file.size, sample: false };
+          return isFile
+            ? { blob, url, name: file.name, width, height, bytes: file.size, sample: false }
+            : { blob, url, name: file.name, width, height, bytes: blob.size, sample: true };
         });
         setCutout(null);
         setDepth(null);

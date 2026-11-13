@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { removeBackground, type CutoutPhase } from '../ml/client';
-import { BG_MODEL } from './catalog';
+import { BG_MODEL, SAMPLES, type Sample } from './catalog';
 import { Segmented } from './Controls';
 import { Icon } from './Icon';
 import { DownloadVeil, FitFrame, Scan } from './Stage';
@@ -24,7 +24,7 @@ interface Props {
   cutout: Cutout | null;
   /** null while the stored model files are being checked. */
   modelStored: boolean | null;
-  onChoose: (file: File | 'sample') => void;
+  onChoose: (file: File | Sample) => void;
   onCutout: (cutout: Cutout) => void;
   onModelStored: (stored: boolean) => void;
   onBusy: (busy: boolean) => void;
@@ -154,10 +154,7 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
           />
           {!source && (
             <>
-              <button type="button" className="btn btn--ghost" onClick={() => onChoose('sample')}>
-                Use sample
-              </button>
-              <button type="button" className="btn btn--primary" onClick={pick}>
+              <button type="button" className="btn btn--primary btn--wide" onClick={pick}>
                 <Icon name="image" />
                 Choose image
               </button>
@@ -192,6 +189,22 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
         </>
       }
     >
+      {!source && (
+        <div className="samples">
+          <h3>Or try a sample</h3>
+          <div className="samples__grid">
+            {SAMPLES.map((s) => (
+              <button key={s.id} type="button" className="sample" onClick={() => onChoose(s)}>
+                <span className="sample__thumb">
+                  <img src={s.original} alt="" loading="lazy" decoding="async" />
+                </span>
+                <span className="sample__label">{s.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!source && (
         <ul className="tips">
           <li>

@@ -1,14 +1,23 @@
-// The bundled sample image and the models the import steps download, as shown in the UI.
+// The bundled sample images and the models the import steps download, as shown in the UI.
 
 import { MODELS, type ModelId } from '../ml/models';
 import { WITHOUTBG } from '../ml/withoutbg/config';
 
 const base = import.meta.env.BASE_URL;
 
-export const SAMPLE = {
-  name: 'anime_long_hair.jpg',
-  original: `${base}samples/anime/original.jpg`,
-};
+export interface Sample {
+  id: string;
+  /** Shown under the thumbnail. */
+  label: string;
+  /** File name shown once the sample is loaded. */
+  name: string;
+  original: string;
+}
+
+export const SAMPLES: Sample[] = [
+  { id: 'layla', label: 'Layla', name: 'layla.png', original: `${base}samples/layla/original.png` },
+  { id: 'yor', label: 'Yor', name: 'yor.jpg', original: `${base}samples/yor/original.jpg` },
+];
 
 export interface ModelFileInfo {
   name: string;

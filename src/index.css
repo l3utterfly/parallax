@@ -879,6 +879,60 @@ input:focus-visible {
 }
 
 /* File card */
+.samples {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.samples h3 {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.samples__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.sample {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sample__thumb {
+  display: block;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--line);
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.sample__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
+.sample:hover .sample__thumb,
+.sample:focus-visible .sample__thumb {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.sample__label {
+  font-weight: 600;
+  font-size: 13.5px;
+}
 .filecard {
   display: flex;
   align-items: center;
