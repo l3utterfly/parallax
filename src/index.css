@@ -1642,6 +1642,103 @@ input:focus-visible {
   gap: 10px 22px;
 }
 
+/* ── Dialog ────────────────────────────────────────────────────────── */
+
+.dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  animation: rise 0.25s var(--ease);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 0 20px;
+}
+
+.dialog__head h2 {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 20px 4px;
+  overflow-y: auto;
+  color: var(--muted);
+}
+
+.dialog__body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dialog__hosts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dialog__hosts code {
+  display: block;
+  padding: 5px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  user-select: all;
+}
+
+.dialog__shot img {
+  display: block;
+  width: 100%;
+  max-height: 46dvh;
+  object-fit: contain;
+  object-position: top;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #1c1c1c;
+}
+
+.dialog__shot figcaption {
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.dialog__warn {
+  color: var(--warn);
+}
+
+.dialog__foot {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px 20px;
+}
+
 /* ── Responsive ────────────────────────────────────────────────────── */
 
 @media (max-width: 1180px) {

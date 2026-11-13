@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, type ViewerSettings } from './parallax/ParallaxViewer';
 import { prepareAssets, type PreparedAssets } from './parallax/prepare';
 import { isModelStored } from './ml/client';
+import { canReachDownloadHosts } from './ml/hostCheck';
+import { inLayla } from './ml/storage';
+import { PermissionsDialog } from './wizard/PermissionsDialog';
 import { SAMPLE } from './wizard/catalog';
 import type { Device } from './wizard/Stage';
 import { StepConfigure } from './wizard/StepConfigure';
@@ -55,6 +58,15 @@ export default function App() {
       .then(setDepthStored)
       .catch(() => setDepthStored(false));
   }, []);
+
+  // Inside Layla, check once that its Mini-app permissions let the model downloads through.
+  const [hostsBlocked, setHostsBlocked] = useState(false);
+  useEffect(() => {
+    if (!inLayla()) return;
+    canReachDownloadHosts().then((ok) => setHostsBlocked(!ok));
+  }, []);
+  // Only worth interrupting for when a model still has to be downloaded.
+  const showPermissions = hostsBlocked && (bgStored === false || depthStored === false);
 
   // Results own object URLs; release the old one when a result is replaced.
   const setCutout = useCallback((next: Cutout | null) => {
@@ -158,6 +170,8 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {showPermissions && <PermissionsDialog onClose={() => setHostsBlocked(false)} />}
 
       <main className="main" key={step}>
         {step === 'image' && (
