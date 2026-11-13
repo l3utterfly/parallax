@@ -7,7 +7,11 @@
 // Downloading uses FileSystemSyncAccessHandle, so it must run in a worker.
 // The read/status/delete helpers work on the main thread too.
 
-import type { ModelFile } from './withoutbg/config';
+export interface ModelFile {
+  name: string;
+  bytes: number;
+  sha256: string;
+}
 
 /** FileSystemSyncAccessHandle (worker-only); not in TypeScript's DOM lib yet. */
 interface SyncAccessHandle {

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
-import { totalMB, type ModelInfo } from './dummy';
+import { totalMB, type ModelInfo } from './catalog';
+import type { ModelDownload } from './useMlJob';
 
 export type RowState = 'pending' | 'running' | 'done' | 'error';
 
@@ -102,5 +103,27 @@ export function ModelTask({ model, state, loaded, seconds, doneText = 'Saved', e
         </ul>
       )}
     </TaskRow>
+  );
+}
+
+/** ModelTask driven by useModelDownload, with a Delete action once the model is stored. */
+export function ModelRow({ model, download: d, busy }: { model: ModelInfo; download: ModelDownload; busy: boolean }) {
+  return (
+    <ModelTask
+      model={model}
+      state={d.state}
+      loaded={d.loaded}
+      seconds={d.seconds}
+      doneText={d.justDownloaded ? 'Downloaded' : 'Saved'}
+      error={d.error}
+      aside={
+        d.state === 'done' &&
+        !busy && (
+          <button type="button" className="text-btn task__action" onClick={d.remove}>
+            Delete
+          </button>
+        )
+      }
+    />
   );
 }

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, type ViewerSettings } from './parallax/ParallaxViewer';
 import { prepareAssets, type PreparedAssets } from './parallax/prepare';
-import { isModelStored } from './ml/withoutbg/client';
-import { SAMPLE } from './wizard/dummy';
+import { isModelStored } from './ml/client';
+import { SAMPLE } from './wizard/catalog';
 import type { Device } from './wizard/Stage';
 import { StepConfigure } from './wizard/StepConfigure';
 import { StepDepth } from './wizard/StepDepth';
@@ -10,7 +10,7 @@ import { Stepper } from './wizard/Stepper';
 import { stepIndex, type StepId } from './wizard/steps';
 import { StepImage } from './wizard/StepImage';
 import { StepResult } from './wizard/StepResult';
-import { DEFAULT_EXTRAS, type Cutout, type ExtraSettings, type SourceImage } from './wizard/types';
+import { DEFAULT_EXTRAS, type Cutout, type DepthMap, type ExtraSettings, type SourceImage } from './wizard/types';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -29,13 +29,6 @@ async function fetchBlob(url: string): Promise<Blob> {
   return res.blob();
 }
 
-/**
- * Builds the viewer layers from the original photo (backdrop) and the real cutout.
- * Depth estimation isn't wired up yet, so the sample depth map stands in.
- */
-async function loadAssets(original: Blob, cutout: Blob): Promise<PreparedAssets> {
-  return prepareAssets({ background: original, character: cutout, depth: await fetchBlob(SAMPLE.depth) });
-}
 
 export default function App() {
   const [step, setStep] = useState<StepId>('image');
@@ -43,9 +36,9 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<SourceImage | null>(null);
   const [cutout, setCutoutState] = useState<Cutout | null>(null);
-  const [depth, setDepth] = useState<string | null>(null);
+  const [depth, setDepthState] = useState<DepthMap | null>(null);
   const [bgStored, setBgStored] = useState<boolean | null>(null);
-  const [depthCached, setDepthCached] = useState(false);
+  const [depthStored, setDepthStored] = useState<boolean | null>(null);
   const [settings, setSettings] = useState<ViewerSettings>(DEFAULT_SETTINGS);
   const [extras, setExtras] = useState<ExtraSettings>(DEFAULT_EXTRAS);
   const [device, setDevice] = useState<Device>('phone');
@@ -53,15 +46,25 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const tuned = useRef<ViewerSettings>(DEFAULT_SETTINGS);
 
-  // Is the background removal model already in this browser's storage?
+  // Are the models already in this browser's storage?
   useEffect(() => {
-    isModelStored()
+    isModelStored('withoutbg')
       .then(setBgStored)
       .catch(() => setBgStored(false));
+    isModelStored('depth')
+      .then(setDepthStored)
+      .catch(() => setDepthStored(false));
   }, []);
 
+  // Results own object URLs; release the old one when a result is replaced.
   const setCutout = useCallback((next: Cutout | null) => {
     setCutoutState((old) => {
+      if (old && old !== next) URL.revokeObjectURL(old.url);
+      return next;
+    });
+  }, []);
+  const setDepth = useCallback((next: DepthMap | null) => {
+    setDepthState((old) => {
       if (old && old !== next) URL.revokeObjectURL(old.url);
       return next;
     });
@@ -94,7 +97,7 @@ export default function App() {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [setCutout],
+    [setCutout, setDepth],
   );
 
   const restart = () => {
@@ -109,11 +112,11 @@ export default function App() {
     setStep('image');
   };
 
-  // Build the live preview layers once the cutout and depth are available.
+  // Build the live preview layers: original photo as the backdrop, the cutout in front, both with the real depth.
   useEffect(() => {
     if (!depth || !cutout || !source) return;
     let cancelled = false;
-    loadAssets(source.blob, cutout.blob)
+    prepareAssets({ background: source.blob, character: cutout.blob, depth: depth.blob })
       .then((a) => {
         if (cancelled) return a.dispose();
         const { bgMean, fgMean } = a.stats;
@@ -149,12 +152,7 @@ export default function App() {
           <span className="brand__tag">New scene</span>
         </div>
         <Stepper current={step} reachable={reachable} disabled={busy} onSelect={go} />
-        <div className="topbar__end">
-          <span className="chip" title="Background removal runs for real. Depth detection is still simulated and uses the sample depth map.">
-            <span className="chip__dot" />
-            Sample depth
-          </span>
-        </div>
+        <div className="topbar__end" />
       </header>
 
       {error && (
@@ -185,13 +183,14 @@ export default function App() {
         {step === 'depth' && source && (
           <StepDepth
             source={source}
+            cutout={cutout}
             depth={depth}
-            modelCached={depthCached}
-            onDepth={(url) => {
-              setDepth(url);
+            modelStored={depthStored}
+            onDepth={(d) => {
+              setDepth(d);
               setReachable((r) => Math.max(r, 2));
             }}
-            onModelCached={() => setDepthCached(true)}
+            onModelStored={setDepthStored}
             onBusy={setBusy}
             onBack={() => go('image')}
             onNext={() => go('configure')}

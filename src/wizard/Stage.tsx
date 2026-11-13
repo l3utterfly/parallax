@@ -1,4 +1,5 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { totalMB, type ModelInfo } from './catalog';
 import { Icon } from './Icon';
 
 /** Box with the image's aspect ratio, fitted inside the stage (contain). Children stack on top of each other. */
@@ -90,5 +91,17 @@ export function DeviceFrame({ device, children }: { device: Device; children: Re
     <FitFrame aspect={DEVICE_ASPECT[device]} className={`device device--${device}`}>
       <div className="device__screen">{children}</div>
     </FitFrame>
+  );
+}
+
+/** Dims the stage while a model downloads. */
+export function DownloadVeil({ model, loaded }: { model: ModelInfo; loaded: number }) {
+  return (
+    <div className="stage-veil">
+      <div className="stage-pill">
+        <Icon name="download" size={15} />
+        Downloading model · {Math.min(100, Math.round((loaded / (totalMB(model) * 1e6)) * 100))}%
+      </div>
+    </div>
   );
 }

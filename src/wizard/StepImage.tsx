@@ -1,42 +1,23 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { deleteModel, downloadModel, removeBackground, type Backend, type Phase } from '../ml/withoutbg/client';
+import { removeBackground, type CutoutPhase } from '../ml/client';
+import { BG_MODEL } from './catalog';
 import { Segmented } from './Controls';
-import { BG_MODEL } from './dummy';
 import { Icon } from './Icon';
-import { FitFrame, Scan } from './Stage';
+import { DownloadVeil, FitFrame, Scan } from './Stage';
 import { StepLayout } from './StepLayout';
-import { ModelTask, TaskList, TaskRow, type RowState } from './Tasks';
+import { ModelRow, TaskList, TaskRow, type RowState } from './Tasks';
 import { formatBytes, type Cutout, type SourceImage } from './types';
+import { useModelDownload, usePhasedJob, type PhaseSpec } from './useMlJob';
 
 type View = 'overlay' | 'cutout' | 'original';
 
-/** Progress-bar span for each phase, and roughly how long it takes (ms) for the creep animation. */
-const PHASES: Record<Phase, { label: string; from: number; to: number; expect: number }> = {
+const PHASES: Record<CutoutPhase, PhaseSpec> = {
   decoding: { label: 'Reading the image', from: 0, to: 0.06, expect: 300 },
   loading: { label: 'Loading the model', from: 0.06, to: 0.28, expect: 2500 },
   router: { label: 'Finding the subject', from: 0.28, to: 0.45, expect: 900 },
   matting: { label: 'Building the alpha matte', from: 0.45, to: 0.94, expect: 2500 },
   compositing: { label: 'Compositing the cutout', from: 0.94, to: 1, expect: 400 },
 };
-
-interface DownloadState {
-  status: RowState;
-  loaded: number;
-  startedAt: number;
-  /** Seconds elapsed at the last progress update. */
-  seconds: number;
-  error?: string;
-}
-
-interface ProcessState {
-  status: 'idle' | 'running' | 'error';
-  phase: Phase;
-  phaseAt: number;
-  backend?: Backend;
-  error?: string;
-}
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 interface Props {
   source: SourceImage | null;
@@ -51,71 +32,23 @@ interface Props {
 }
 
 export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onModelStored, onBusy, onNext }: Props) {
-  const [dl, setDl] = useState<DownloadState>({ status: 'pending', loaded: 0, startedAt: 0, seconds: 0 });
-  const [proc, setProc] = useState<ProcessState>({ status: 'idle', phase: 'decoding', phaseAt: 0 });
-  const [now, setNow] = useState(0);
+  const dl = useModelDownload('withoutbg', modelStored, onModelStored);
+  const job = usePhasedJob(PHASES, 'decoding');
   const [view, setView] = useState<View>('overlay');
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
-  const downloading = dl.status === 'running';
-  const processing = proc.status === 'running';
+  const downloading = dl.running;
+  const processing = job.running;
   const running = downloading || processing;
   useEffect(() => onBusy(running), [running, onBusy]);
 
-  // Tick while processing so the bar creeps forward within each phase.
-  useEffect(() => {
-    if (!processing) return;
-    let raf = 0;
-    const tick = () => {
-      setNow(performance.now());
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [processing]);
-
-  const ph = PHASES[proc.phase];
-  const procProgress = ph.from + (ph.to - ph.from) * (1 - Math.exp(-Math.max(0, now - proc.phaseAt) / ph.expect));
-  const procLabel = ph.label + '…' + (proc.backend === 'wasm' ? ' (on the CPU, WebGPU is unavailable)' : '');
-
   const run = async () => {
-    if (!source) return;
-    if (!modelStored) {
-      setDl({ status: 'running', loaded: 0, startedAt: performance.now(), seconds: 0 });
-      try {
-        await downloadModel((loaded) => setDl((d) => ({ ...d, loaded, seconds: (performance.now() - d.startedAt) / 1000 })));
-        setDl((d) => ({ ...d, status: 'done' }));
-        onModelStored(true);
-      } catch (e) {
-        setDl((d) => ({ ...d, status: 'error', error: message(e) }));
-        return;
-      }
-    }
-    const t0 = performance.now();
-    setProc({ status: 'running', phase: 'decoding', phaseAt: t0 });
-    setNow(t0);
-    try {
-      const res = await removeBackground(source.blob, (phase, backend) =>
-        setProc((p) => ({ ...p, phase, phaseAt: performance.now(), backend: backend ?? p.backend })),
-      );
-      onCutout({
-        blob: res.png,
-        url: URL.createObjectURL(res.png),
-        backend: res.backend,
-        seconds: (performance.now() - t0) / 1000,
-      });
-      setProc((p) => ({ ...p, status: 'idle' }));
-      setView('overlay');
-    } catch (e) {
-      setProc((p) => ({ ...p, status: 'error', error: message(e) }));
-    }
-  };
-
-  const removeStoredModel = async () => {
-    await deleteModel();
-    setDl({ status: 'pending', loaded: 0, startedAt: 0, seconds: 0 });
-    onModelStored(false);
+    if (!source || !(await dl.ensure())) return;
+    const res = await job.run((onPhase) => removeBackground(source.blob, onPhase));
+    if (!res) return;
+    onCutout({ blob: res.result.png, url: URL.createObjectURL(res.result.png), backend: res.result.backend, seconds: res.seconds });
+    setView('overlay');
   };
 
   const pick = () => input.current?.click();
@@ -170,15 +103,8 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
         {done && view !== 'original' && (
           <img src={cutout.url} alt="Character cutout" className={`cutout${view === 'overlay' ? ' cutout--glow' : ''}`} />
         )}
-        {processing && <Scan progress={procProgress} label={procLabel} />}
-        {downloading && (
-          <div className="stage-veil">
-            <div className="stage-pill">
-              <Icon name="download" size={15} />
-              Downloading model · {Math.round((dl.loaded / (BG_MODEL.files.reduce((s, f) => s + f.sizeMB, 0) * 1e6)) * 100)}%
-            </div>
-          </div>
-        )}
+        {processing && <Scan progress={job.progress} label={job.label} />}
+        {downloading && <DownloadVeil model={BG_MODEL} loaded={dl.loaded} />}
       </FitFrame>
     );
   }
@@ -199,9 +125,8 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
     ) : null;
 
   // ── Panel ────────────────────────────────────────────────────────────
-  const modelState: RowState = downloading ? 'running' : dl.status === 'error' ? 'error' : modelStored ? 'done' : 'pending';
-  const cutState: RowState = processing ? 'running' : proc.status === 'error' ? 'error' : cutout ? 'done' : 'pending';
-  const failed = dl.status === 'error' || proc.status === 'error';
+  const cutState: RowState = processing ? 'running' : job.failed ? 'error' : cutout ? 'done' : 'pending';
+  const failed = dl.failed || job.failed;
 
   return (
     <StepLayout
@@ -309,31 +234,16 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
           </div>
 
           <TaskList>
-            <ModelTask
-              model={BG_MODEL}
-              state={modelState}
-              loaded={dl.loaded}
-              seconds={dl.seconds}
-              doneText={dl.status === 'done' ? 'Downloaded' : 'Saved'}
-              error={dl.error}
-              aside={
-                modelState === 'done' &&
-                !running && (
-                  <button type="button" className="text-btn task__action" onClick={removeStoredModel}>
-                    Delete
-                  </button>
-                )
-              }
-            />
+            <ModelRow model={BG_MODEL} download={dl} busy={running} />
             <TaskRow
               icon="wand"
               title="Remove background"
               subtitle="Separate the character from the scene"
               state={cutState}
-              progress={procProgress}
-              detail={procLabel}
+              progress={job.progress}
+              detail={job.label}
               doneText={cutout ? `${cutout.seconds.toFixed(1)} s · ${cutout.backend === 'webgpu' ? 'GPU' : 'CPU'}` : 'Done'}
-              error={proc.error}
+              error={job.error}
             />
           </TaskList>
 
