@@ -32,6 +32,21 @@ function getWorker(): Worker {
   return worker;
 }
 
+/**
+ * Stops the ML worker, freeing its models: their weights sit in the worker's
+ * WASM heap (which never shrinks) and GPU buffers, several hundred MB that
+ * otherwise stay resident for the rest of the session. Call it before
+ * memory-heavy work once ML is done; iOS ends the page when it uses too much
+ * memory. The next ML call starts a fresh worker and loads the models again.
+ */
+export function releaseMl(): void {
+  if (!worker) return;
+  worker.terminate();
+  worker = null;
+  for (const [id, l] of listeners) l({ id, type: 'error', message: 'The ML worker was stopped.' });
+  listeners.clear();
+}
+
 function call<T>(req: Without<Request, 'id'>, onEvent: Listener = () => {}): Promise<T> {
   const id = nextId++;
   return new Promise((resolve, reject) => {

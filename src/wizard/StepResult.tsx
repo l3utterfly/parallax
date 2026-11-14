@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { releaseMl } from '../ml/client';
 import type { ViewerSettings } from '../parallax/ParallaxViewer';
 import type { PreparedAssets } from '../parallax/prepare';
 import { Segmented } from './Controls';
@@ -46,6 +47,9 @@ export function StepResult({ source, cutout, depth, assets, settings, device, on
   const save = async () => {
     setSaving(true);
     setError(null);
+    // The cutout and depth map are done; give the models' memory back before
+    // packaging, which holds the scene's images several times over.
+    releaseMl();
     try {
       // Loaded on demand: the exporter carries the whole standalone player.
       const [{ exportScene }, { saveExport }] = await Promise.all([

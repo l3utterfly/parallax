@@ -1,8 +1,9 @@
 // Model storage in the Layla mini-app folder.
 //
-// Writing goes through `layla.utils.saveFile`, which takes a whole file as one
-// base64 string over the WebView bridge, so each model is saved as fixed-size
-// parts (`<file>.part000`, `.part001`, ...). Reading doesn't use the bridge at
+// Writing goes through `layla.utils.saveFile`. Layla builds before split saves
+// take a whole file as one base64 message over the WebView bridge, so each
+// model is saved as fixed-size parts (`<file>.part000`, `.part001`, ...); the
+// layout also keeps files already stored by earlier versions valid. Reading doesn't use the bridge at
 // all: Layla serves the mini-app folder over localhost, so the parts are plain
 // `fetch`es from the page's own origin, copied into one buffer.
 //
@@ -13,11 +14,11 @@
 // Reading works on any thread; saving and deleting need the page (the SDK posts
 // through window.ReactNativeWebView).
 
-import { layla, toBase64 } from '../layla';
+import { layla } from '../layla';
 import type { ModelFile } from './modelStore';
 import type { ModelSpec } from './models';
 
-/** Raw bytes per part: an 11 MB base64 string per saveFile call. */
+/** Raw bytes per part file: at most an 11 MB base64 message per saveFile call, even on older Layla builds. */
 export const PART_BYTES = 8 * 1024 * 1024;
 /** Parts fetched at once when reading back. */
 const READ_CONCURRENCY = 4;
@@ -46,7 +47,7 @@ const expectedManifest = (file: ModelFile): FileManifest => ({
 const toHex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 
 async function save(path: string, bytes: Uint8Array<ArrayBuffer>): Promise<void> {
-  const result = await (await layla()).utils.saveFile(path, await toBase64(bytes), false);
+  const result = await (await layla()).utils.saveFile(path, bytes, false);
   if (!result.success) throw new Error(`Could not save ${path}: ${result.message ?? 'unknown error'}`);
 }
 
