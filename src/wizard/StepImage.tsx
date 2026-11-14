@@ -66,29 +66,46 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
     stage = (
       <div
         className={`dropzone${over ? ' is-over' : ''}`}
-        role="button"
-        tabIndex={0}
-        onClick={pick}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && pick()}
         onDragOver={(e) => {
           e.preventDefault();
           setOver(true);
         }}
-        onDragLeave={() => setOver(false)}
+        onDragLeave={(e) => {
+          // Moving between the zone's own children isn't leaving it.
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+        }}
         onDrop={onDrop}
       >
-        <div className="dropzone__art" aria-hidden="true">
-          <span className="dropzone__card dropzone__card--back" />
-          <span className="dropzone__card dropzone__card--mid" />
-          <span className="dropzone__card dropzone__card--front">
-            <Icon name="upload" size={26} />
+        <button type="button" className="dropzone__pick" onClick={pick}>
+          <span className="dropzone__art" aria-hidden="true">
+            <span className="dropzone__card dropzone__card--back" />
+            <span className="dropzone__card dropzone__card--mid" />
+            <span className="dropzone__card dropzone__card--front">
+              <Icon name="upload" size={26} />
+            </span>
           </span>
+          <strong>Drop a character image here</strong>
+          <span className="muted">
+            or <span className="text-link">browse your files</span>
+          </span>
+          <span className="dropzone__formats">PNG · JPG · WebP · up to 4096 px</span>
+        </button>
+
+        <div className="samples">
+          <h3 className="samples__divider">
+            <span>Or try a sample</span>
+          </h3>
+          <div className="samples__grid">
+            {SAMPLES.map((s) => (
+              <button key={s.id} type="button" className="sample" onClick={() => onChoose(s)}>
+                <span className="sample__thumb">
+                  <img src={s.original} alt="" loading="lazy" decoding="async" />
+                </span>
+                <span className="sample__label">{s.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <strong>Drop a character image here</strong>
-        <span className="muted">
-          or <span className="text-link">browse your files</span>
-        </span>
-        <span className="dropzone__formats">PNG · JPG · WebP · up to 4096 px</span>
       </div>
     );
   } else {
@@ -189,22 +206,6 @@ export function StepImage({ source, cutout, modelStored, onChoose, onCutout, onM
         </>
       }
     >
-      {!source && (
-        <div className="samples">
-          <h3>Or try a sample</h3>
-          <div className="samples__grid">
-            {SAMPLES.map((s) => (
-              <button key={s.id} type="button" className="sample" onClick={() => onChoose(s)}>
-                <span className="sample__thumb">
-                  <img src={s.original} alt="" loading="lazy" decoding="async" />
-                </span>
-                <span className="sample__label">{s.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {!source && (
         <ul className="tips">
           <li>
