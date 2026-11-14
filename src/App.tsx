@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { probeTilt } from './parallax/motion';
 import { DEFAULT_SETTINGS, type ViewerSettings } from './parallax/ParallaxViewer';
 import { prepareAssets, type PreparedAssets } from './parallax/prepare';
 import { isModelStored } from './ml/client';
@@ -138,7 +139,18 @@ export default function App() {
 
   useEffect(() => () => assets?.dispose(), [assets]);
 
-  const patchSettings = useCallback((p: Partial<ViewerSettings>) => setSettings((s) => ({ ...s, ...p })), []);
+  // Default to tilt on devices with a motion sensor, unless the user already picked a source.
+  const motionPicked = useRef(false);
+  useEffect(() => {
+    void probeTilt().then((ok) => {
+      if (ok && !motionPicked.current) setSettings((s) => ({ ...s, motionSource: 'tilt' }));
+    });
+  }, []);
+
+  const patchSettings = useCallback((p: Partial<ViewerSettings>) => {
+    if (p.motionSource) motionPicked.current = true;
+    setSettings((s) => ({ ...s, ...p }));
+  }, []);
 
   return (
     <div className="shell">

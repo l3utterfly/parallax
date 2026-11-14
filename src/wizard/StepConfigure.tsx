@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Slider } from '../components/Slider';
-import { requestTiltAccess, type TiltAccess } from '../parallax/motion';
+import { requestTiltAccess, tiltNeedsTap, type TiltAccess } from '../parallax/motion';
 import type { MotionSource, ViewMode, ViewerSettings } from '../parallax/ParallaxViewer';
 import type { PreparedAssets } from '../parallax/prepare';
 import { Row, Section, Segmented } from './Controls';
@@ -61,7 +61,28 @@ export function StepConfigure({ assets, settings: s, device, onDevice, onSetting
     setTilt('checking');
     void requestTiltAccess().then(setTilt);
   };
-  const status = s.motionSource === 'tilt' && tilt ? tiltStatus(tilt) : null;
+  // Tilt can arrive here as the default rather than a tap on the button, so connect the sensor now:
+  // straight away where no prompt is needed, or on the next tap on iOS.
+  const autoTilt = s.motionSource === 'tilt' && tilt === null;
+  useEffect(() => {
+    if (!autoTilt) return;
+    const connect = () => {
+      setTilt('checking');
+      void requestTiltAccess().then(setTilt);
+    };
+    if (!tiltNeedsTap()) return connect();
+    window.addEventListener('pointerdown', connect, { once: true });
+    return () => window.removeEventListener('pointerdown', connect);
+  }, [autoTilt]);
+
+  const status =
+    s.motionSource !== 'tilt'
+      ? null
+      : tilt
+        ? tiltStatus(tilt)
+        : tiltNeedsTap()
+          ? { ok: true, text: 'Tap anywhere to turn on the motion sensor.' }
+          : null;
 
   return (
     <StepLayout

@@ -101,6 +101,24 @@ export async function requestTiltAccess(): Promise<TiltAccess> {
   return 'unavailable';
 }
 
+/** True when the browser only sends orientation data after a tap-triggered permission prompt (iOS). */
+export function tiltNeedsTap(): boolean {
+  const ctor = (window as Window & { DeviceOrientationEvent?: OrientationEventCtor }).DeviceOrientationEvent;
+  return typeof ctor?.requestPermission === 'function';
+}
+
+/**
+ * Guesses, without prompting, whether this device can drive the scene by tilt.
+ * Where data flows freely (Android, Chromium) it waits for a real reading. On
+ * iOS nothing arrives before the permission tap, so a touch screen is taken as
+ * the sign of a phone or tablet with a gyroscope.
+ */
+export async function probeTilt(): Promise<boolean> {
+  if (!window.isSecureContext || !('DeviceOrientationEvent' in window)) return false;
+  if (tiltNeedsTap()) return !isDesktop();
+  return listenForReading().wait(PROBE_MS);
+}
+
 /** Device rotation relative to its natural portrait orientation, in degrees (0, 90, 180, 270). */
 function screenAngle(): number {
   // iOS before 16.4 has no screen.orientation, only the older window.orientation (-90..180).
