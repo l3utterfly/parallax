@@ -3,6 +3,7 @@ import type { ViewerSettings } from '../parallax/ParallaxViewer';
 import type { PreparedAssets } from '../parallax/prepare';
 import { Segmented } from './Controls';
 import { Icon } from './Icon';
+import { ImportGuideDialog } from './ImportGuideDialog';
 import { LivePreview } from './LivePreview';
 import type { Device } from './Stage';
 import { StepLayout } from './StepLayout';
@@ -34,6 +35,8 @@ export function StepResult({ source, cutout, depth, assets, settings, device, on
   const [title, setTitle] = useState(() => defaultTitle(source.name));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Open import guide; `filename` is set when it follows a save. */
+  const [guide, setGuide] = useState<{ filename?: string } | null>(null);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3200);
@@ -59,6 +62,7 @@ export function StepResult({ source, cutout, depth, assets, settings, device, on
       });
       const how = await saveExport(blob, filename);
       setToast(how === 'shared' ? `Saved ${filename}` : `Downloaded ${filename}`);
+      setGuide({ filename });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -176,7 +180,13 @@ export function StepResult({ source, cutout, depth, assets, settings, device, on
           <Icon name="refresh" size={14} />
           Import another image
         </button>
+        <button type="button" className="text-btn" onClick={() => setGuide({})}>
+          <Icon name="info" size={14} />
+          How to use it in Layla
+        </button>
       </div>
+
+      {guide && <ImportGuideDialog filename={guide.filename} onClose={() => setGuide(null)} />}
     </StepLayout>
   );
 }

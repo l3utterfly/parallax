@@ -1793,6 +1793,62 @@ input:focus-visible {
   padding: 16px 20px 20px;
 }
 
+/* Import guide: numbered steps, each with a phone screenshot. */
+.dialog--guide {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide__step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.guide__num {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.guide__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.guide__content p {
+  margin: 0;
+}
+
+.guide__content img {
+  display: block;
+  width: auto;
+  max-width: min(100%, 240px);
+  max-height: 52dvh;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #1c1c1c;
+}
+
 /* ── Responsive ────────────────────────────────────────────────────── */
 
 @media (max-width: 1180px) {
